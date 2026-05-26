@@ -1,0 +1,81 @@
+name: motostock_pro
+description: MotoStock Pro — Gestion de stock de pièces et périphériques moto
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  http: ^1.2.0
+  package_info_plus: ^8.0.0
+
+  # Backend (for web sync)
+  supabase_flutter: ^2.8.1
+
+  # Database
+  drift: ^2.28.0
+  drift_flutter: ^0.2.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.5
+  path: ^1.9.0
+  mysql_client: ^0.0.27
+
+  # State management – **Riverpod 2** (the code uses StateNotifier, StateProvider, etc.)
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1   # keep the newer version – it still works with Riverpod 2
+
+  # PDF
+  pdf: ^3.11.1
+  printing: ^5.14.0
+
+  # Charts
+  fl_chart: ^1.2.0
+
+  # Icons – **font_awesome_flutter 10** (the older API returns IconData compatible with Icon)
+  font_awesome_flutter: ^10.0.0
+
+  # Window management
+  window_manager: ^0.5.1
+
+  # File operations
+  file_picker: ^11.0.2
+
+  # Utilities
+  shared_preferences: ^2.3.5
+  intl: ^0.20.2
+  csv: ^6.0.0
+  google_fonts: ^6.2.1
+  uuid: ^4.5.1
+  equatable: ^2.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+  # Code generation – keep the versions that match Riverpod 2
+  drift_dev: ^2.28.0
+  riverpod_generator: ^2.6.5
+  build_runner: ^2.4.14
+  custom_lint: any
+  riverpod_lint: ^2.6.5
+  state_notifier: ^1.0.0
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 48
