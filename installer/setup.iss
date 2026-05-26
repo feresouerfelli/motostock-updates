@@ -3,10 +3,10 @@
 
 [Setup]
 AppName=MotoStock Pro
-AppVersion=1.0.2
+AppVersion=1.0.3
 DefaultDirName={pf}\MotoStock Pro
 DefaultGroupName=MotoStock Pro
-OutputBaseFilename=MotostockPro_Installer_1.0.2
+OutputBaseFilename=MotostockPro_Installer_1.0.3
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
