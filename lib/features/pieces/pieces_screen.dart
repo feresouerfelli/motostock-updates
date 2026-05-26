@@ -310,8 +310,27 @@ class _PiecesTable extends ConsumerWidget {
       icon: FontAwesomeIcons.trash,
     );
     if (ok && context.mounted) {
-      await ref.read(databaseProvider).deletePiece(p.id);
-      ref.invalidate(piecesListProvider);
+      try {
+        await ref.read(databaseProvider).deletePiece(p.id);
+        ref.invalidate(piecesListProvider);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('La pièce "${p.nom}" a été supprimée avec succès.'),
+              backgroundColor: const Color(0xFF2E7D32),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Impossible de supprimer la pièce : $e'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+      }
     }
   }
 }

@@ -232,8 +232,12 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> insertPiece(PiecesCompanion piece) => into(pieces).insert(piece);
   Future<bool> updatePiece(Piece piece) => update(pieces).replace(piece);
-  Future<int> deletePiece(int id) =>
-      (delete(pieces)..where((t) => t.id.equals(id))).go();
+  Future<int> deletePiece(int id) {
+    return transaction(() async {
+      await (delete(mouvementsStock)..where((t) => t.pieceId.equals(id))).go();
+      return await (delete(pieces)..where((t) => t.id.equals(id))).go();
+    });
+  }
   Future<Piece?> getPieceById(int id) {
     return _safePiecesQuery(
       where: 'id = ?',
