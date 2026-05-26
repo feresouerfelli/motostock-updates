@@ -14,7 +14,7 @@ class UpdateService {
   UpdateService(this._ref);
 
   static const _latestJsonUrl =
-      'https://raw.githubusercontent.com/feresouerfelli/motostock-updates/main/latest.json';
+      'https://raw.githubusercontent.com/feresouerfelli/motostock-updates/master/latest.json';
 
   // Returns true if an update was found and downloaded
   Future<UpdateResult> checkForUpdates() async {
