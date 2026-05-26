@@ -30,6 +30,7 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
   final _nomCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _categorie = 'Freinage';
+  final _customCategorieCtrl = TextEditingController();
   final _compatCtrl = TextEditingController();
   final _imageUrlCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController(text: '0');
@@ -41,6 +42,8 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
   int? _selectedFournisseurId;
 
   final List<String> _selectedBrands = [];
+  final _customBrandCtrl = TextEditingController();
+  bool _autreMarqueSelected = false;
 
   bool get _isEdit => widget.pieceId != null;
 
@@ -61,7 +64,7 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
     'TGB',
     'Aprilia',
     'Kymco',
-    'Benelli'
+    'Benelli',
   ];
 
   static const _categories = [
@@ -92,6 +95,7 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
     _refCtrl.dispose();
     _nomCtrl.dispose();
     _descCtrl.dispose();
+    _customCategorieCtrl.dispose();
     _compatCtrl.dispose();
     _imageUrlCtrl.dispose();
     _qtyCtrl.dispose();
@@ -100,6 +104,7 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
     _prixVenteCtrl.dispose();
     _garantieCtrl.dispose();
     _emplacementCtrl.dispose();
+    _customBrandCtrl.dispose();
     super.dispose();
   }
 
@@ -109,7 +114,15 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
     _refCtrl.text = p.reference;
     _nomCtrl.text = p.nom;
     _descCtrl.text = p.description ?? '';
-    _categorie = p.categorie;
+
+    // If stored category is not in the predefined list, treat as custom
+    if (_categories.contains(p.categorie)) {
+      _categorie = p.categorie;
+    } else {
+      _categorie = 'Autre';
+      _customCategorieCtrl.text = p.categorie;
+    }
+
     _compatCtrl.text = p.compatibilitesMotos ?? '';
     _imageUrlCtrl.text = p.imagePath ?? '';
     _qtyCtrl.text = p.quantiteEnStock.toString();
@@ -124,10 +137,17 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
       final list =
           p.compatibilitesMotos!.split(',').map((s) => s.trim()).toList();
       _selectedBrands.clear();
+      final customBrands = <String>[];
       for (final b in list) {
         if (_brands.contains(b) && !_selectedBrands.contains(b)) {
           _selectedBrands.add(b);
+        } else if (!_brands.contains(b) && b.isNotEmpty) {
+          customBrands.add(b);
         }
+      }
+      if (customBrands.isNotEmpty) {
+        _autreMarqueSelected = true;
+        _customBrandCtrl.text = customBrands.join(', ');
       }
     }
   }
@@ -201,8 +221,23 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
         }
       }
 
-      final compatString = _selectedBrands.isNotEmpty
-          ? _selectedBrands.join(', ')
+      // Resolve category: if 'Autre', use custom text
+      final effectiveCategory = _categorie == 'Autre'
+          ? (_customCategorieCtrl.text.trim().isEmpty
+              ? 'Autre'
+              : _customCategorieCtrl.text.trim())
+          : _categorie;
+
+      // Build brands list including custom brand if 'Autre marque' is selected
+      final allBrands = [..._selectedBrands];
+      if (_autreMarqueSelected && _customBrandCtrl.text.trim().isNotEmpty) {
+        for (final b
+            in _customBrandCtrl.text.split(',').map((s) => s.trim())) {
+          if (b.isNotEmpty && !allBrands.contains(b)) allBrands.add(b);
+        }
+      }
+      final compatString = allBrands.isNotEmpty
+          ? allBrands.join(', ')
           : (_compatCtrl.text.trim().isEmpty ? null : _compatCtrl.text.trim());
 
       if (_isEdit) {
@@ -213,7 +248,7 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
           nom: _nomCtrl.text.trim(),
           description: Value(
               _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim()),
-          categorie: _categorie,
+          categorie: effectiveCategory,
           compatibilitesMotos: Value(compatString),
           quantiteEnStock: int.tryParse(_qtyCtrl.text) ?? 0,
           quantiteMinimale: int.tryParse(_qtyMinCtrl.text) ?? 5,
@@ -235,7 +270,7 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
         await db.insertPiece(PiecesCompanion.insert(
           reference: _refCtrl.text.trim(),
           nom: _nomCtrl.text.trim(),
-          categorie: _categorie,
+          categorie: effectiveCategory,
           description: Value(
               _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim()),
           compatibilitesMotos: Value(compatString),
@@ -363,15 +398,19 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
                           Row(children: [
                             Expanded(
                                 child: DropdownButtonFormField<String>(
-                              initialValue: _categorie,
+                              value: _categorie,
                               decoration: const InputDecoration(
                                   labelText: 'Catégorie *'),
                               items: _categories
                                   .map((c) => DropdownMenuItem(
                                       value: c, child: Text(c)))
                                   .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _categorie = v ?? _categorie),
+                              onChanged: (v) => setState(() {
+                                _categorie = v ?? _categorie;
+                                if (_categorie != 'Autre') {
+                                  _customCategorieCtrl.clear();
+                                }
+                              }),
                               validator: (v) => v == null ? 'Requis' : null,
                             )),
                             const SizedBox(width: 16),
@@ -379,6 +418,40 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
                                 child: _field('Emplacement', _emplacementCtrl,
                                     hint: 'ex: A3-R2')),
                           ]),
+                          // Custom category field — visible only when 'Autre' is selected
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOut,
+                            child: _categorie == 'Autre'
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: TextFormField(
+                                      controller: _customCategorieCtrl,
+                                      decoration: InputDecoration(
+                                        labelText: 'Nom de la nouvelle catégorie *',
+                                        hintText: 'ex: Visserie, Joints, Échappement sport...',
+                                        prefixIcon: const Icon(
+                                            Icons.edit_rounded,
+                                            size: 16,
+                                            color: AppColors.primary),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(
+                                              color: AppColors.primary,
+                                              width: 1.5),
+                                        ),
+                                      ),
+                                      validator: (v) {
+                                        if (_categorie == 'Autre' &&
+                                            (v == null || v.trim().isEmpty)) {
+                                          return 'Veuillez nommer la catégorie';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'Marques de moto compatibles',
@@ -392,35 +465,95 @@ class _PieceFormScreenState extends ConsumerState<PieceFormScreen> {
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: _brands.map((brand) {
-                              final isSelected =
-                                  _selectedBrands.contains(brand);
-                              return FilterChip(
-                                label: Text(brand),
-                                selected: isSelected,
+                            children: [
+                              ..._brands.map((brand) {
+                                final isSelected =
+                                    _selectedBrands.contains(brand);
+                                return FilterChip(
+                                  label: Text(brand),
+                                  selected: isSelected,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      if (selected) {
+                                        _selectedBrands.add(brand);
+                                      } else {
+                                        _selectedBrands.remove(brand);
+                                      }
+                                    });
+                                  },
+                                  selectedColor:
+                                      AppColors.primary.withOpacity(0.2),
+                                  checkmarkColor: AppColors.primary,
+                                  labelStyle: TextStyle(
+                                    color: isSelected
+                                        ? AppColors.primary
+                                        : textColor,
+                                    fontSize: 12,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                );
+                              }),
+                              // 'Autre marque' chip
+                              FilterChip(
+                                label: const Text('Autre'),
+                                selected: _autreMarqueSelected,
                                 onSelected: (selected) {
                                   setState(() {
-                                    if (selected) {
-                                      _selectedBrands.add(brand);
-                                    } else {
-                                      _selectedBrands.remove(brand);
-                                    }
+                                    _autreMarqueSelected = selected;
+                                    if (!selected) _customBrandCtrl.clear();
                                   });
                                 },
                                 selectedColor:
-                                    AppColors.primary.withOpacity(0.2),
-                                checkmarkColor: AppColors.primary,
+                                    AppColors.secondary.withOpacity(0.2),
+                                checkmarkColor: AppColors.secondary,
                                 labelStyle: TextStyle(
-                                  color: isSelected
-                                      ? AppColors.primary
+                                  color: _autreMarqueSelected
+                                      ? AppColors.secondary
                                       : textColor,
                                   fontSize: 12,
-                                  fontWeight: isSelected
+                                  fontWeight: _autreMarqueSelected
                                       ? FontWeight.bold
                                       : FontWeight.normal,
                                 ),
-                              );
-                            }).toList(),
+                              ),
+                            ],
+                          ),
+                          // Custom brand field — visible only when 'Autre' chip is selected
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOut,
+                            child: _autreMarqueSelected
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: TextFormField(
+                                      controller: _customBrandCtrl,
+                                      decoration: InputDecoration(
+                                        labelText: 'Nom de la marque *',
+                                        hintText:
+                                            'ex: Kove, Rieju, Beta... (séparer par virgule)',
+                                        prefixIcon: const Icon(
+                                            Icons.motorcycle_rounded,
+                                            size: 16,
+                                            color: AppColors.secondary),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(
+                                              color: AppColors.secondary,
+                                              width: 1.5),
+                                        ),
+                                      ),
+                                      validator: (v) {
+                                        if (_autreMarqueSelected &&
+                                            (v == null || v.trim().isEmpty)) {
+                                          return 'Veuillez saisir la marque';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                           const SizedBox(height: 16),
                           _field('Autres compatibilités (modèles spécifiques)',
