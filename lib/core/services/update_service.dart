@@ -6,57 +6,66 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../providers/pending_command_provider.dart';
 
+// ── Riverpod provider ──────────────────────────────────────────────────────
+final updateServiceProvider = Provider<UpdateService>((ref) => UpdateService(ref));
+
 class UpdateService {
   final Ref _ref;
   UpdateService(this._ref);
 
-  static const _repoUrl = 'https://raw.githubusercontent.com/feresouerfelli/motostock-updates/main/latest.json';
+  static const _latestJsonUrl =
+      'https://raw.githubusercontent.com/feresouerfelli/motostock-updates/main/latest.json';
 
-  Future<bool> checkForUpdates() async {
+  // Returns true if an update was found and downloaded
+  Future<UpdateResult> checkForUpdates() async {
     try {
-      // Get current app version
+      // 1. Get current local version
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
 
-      // Fetch remote latest.json
-      final response = await http.get(Uri.parse(_repoUrl));
-      if (response.statusCode != 200) return false;
+      // 2. Fetch remote latest.json
+      final response = await http.get(Uri.parse(_latestJsonUrl))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return UpdateResult.noUpdate;
+
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final remoteVersion = data['version'] as String? ?? '';
-      final downloadUrl = data['exe_url'] as String? ?? '';
+      final downloadUrl   = data['exe_url']  as String? ?? '';
 
-      if (remoteVersion.isEmpty || downloadUrl.isEmpty) return false;
+      if (remoteVersion.isEmpty || downloadUrl.isEmpty) return UpdateResult.noUpdate;
 
-      // Compare semantic versions (simple string compare works for typical "major.minor.patch")
-      if (_isNewerVersion(remoteVersion, currentVersion)) {
-        // Download the exe to a temporary location within the workspace
-        final bytes = await http.get(Uri.parse(downloadUrl)).then((r) => r.bodyBytes);
-        final dir = await getApplicationSupportDirectory();
-        final filePath = '${dir.path}/motostock_update_${remoteVersion}.exe';
-        final file = File(filePath);
-        await file.writeAsBytes(bytes);
-        // Prepare silent install command (Inno Setup supports /VERYSILENT)
-        final command = '"$filePath" /VERYSILENT';
-        // Store the command in a provider so UI can trigger it later
-        _ref.read(pendingCommandProvider.notifier).state = command;
-        return true;
-      }
+      // 3. Compare versions
+      if (!_isNewer(remoteVersion, currentVersion)) return UpdateResult.noUpdate;
+
+      // 4. Download installer
+      final dlResponse = await http.get(Uri.parse(downloadUrl))
+          .timeout(const Duration(minutes: 5));
+      if (dlResponse.statusCode != 200) return UpdateResult.error;
+
+      final dir = await getApplicationSupportDirectory();
+      final filePath = '${dir.path}\\motostock_setup_$remoteVersion.exe';
+      await File(filePath).writeAsBytes(dlResponse.bodyBytes);
+
+      // 5. Store silent-install command in state
+      _ref.read(pendingCommandProvider.notifier).state = '"$filePath" /VERYSILENT /SUPPRESSMSGBOXES';
+
+      return UpdateResult.available;
     } catch (_) {
-      // ignore errors, treat as no update
+      return UpdateResult.error;
     }
-    return false;
   }
 
-  bool _isNewerVersion(String remote, String local) {
-    // Simple numeric comparison split by '.'
-    final remoteParts = remote.split('.').map(int.tryParse).whereType<int>().toList();
-    final localParts = local.split('.').map(int.tryParse).whereType<int>().toList();
-    for (var i = 0; i < remoteParts.length; i++) {
-      final r = remoteParts[i];
-      final l = i < localParts.length ? localParts[i] : 0;
-      if (r > l) return true;
-      if (r < l) return false;
+  bool _isNewer(String remote, String local) {
+    final r = remote.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final l = local.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    for (var i = 0; i < r.length; i++) {
+      final rv = r[i];
+      final lv = i < l.length ? l[i] : 0;
+      if (rv > lv) return true;
+      if (rv < lv) return false;
     }
     return false;
   }
 }
+
+enum UpdateResult { available, noUpdate, error }

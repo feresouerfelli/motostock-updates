@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:motostock_pro/core/budget/budget_validator.dart';
+
 import 'package:motostock_pro/core/theme/app_colors.dart';
 import 'package:motostock_pro/core/utils/formatters.dart';
 import 'package:motostock_pro/features/pieces/providers/pieces_provider.dart';
@@ -55,11 +55,7 @@ class DashboardScreen extends ConsumerWidget {
                 final lowStock = pieces
                     .where((p) => p.quantiteEnStock <= p.quantiteMinimale)
                     .length;
-                return FutureBuilder<double>(
-                  future: ref.read(budgetValidatorProvider).remainingBudget(),
-                  builder: (context, snap) {
-                    final remaining = snap.data ?? 200 - stockValue;
-                    return GridView(
+                return GridView(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
@@ -91,20 +87,6 @@ class DashboardScreen extends ConsumerWidget {
                           textSecondary: textSecondary,
                         ),
                         _MetricCard(
-                          title: 'Reste budget',
-                          value: remaining >= 999999999.0
-                              ? 'Illimité'
-                              : AppFormatters.formatCurrency(remaining),
-                          icon: FontAwesomeIcons.wallet,
-                          color: remaining >= 0
-                              ? AppColors.success
-                              : AppColors.danger,
-                          surface: surface,
-                          border: border,
-                          textColor: textColor,
-                          textSecondary: textSecondary,
-                        ),
-                        _MetricCard(
                           title: 'Stock faible',
                           value: '$lowStock',
                           icon: FontAwesomeIcons.triangleExclamation,
@@ -118,8 +100,6 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ],
                     );
-                  },
-                );
               },
             ),
             const SizedBox(height: 20),

@@ -10,6 +10,8 @@ import 'package:motostock_pro/features/alerts/providers/alerts_provider.dart';
 import 'package:motostock_pro/features/pieces/providers/pieces_provider.dart';
 import 'package:motostock_pro/core/services/update_service.dart';
 import 'package:motostock_pro/core/providers/pending_command_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'dart:io';
 
 class AppSidebar extends ConsumerStatefulWidget {
   final Widget child;
@@ -201,39 +203,28 @@ class _AppSidebarState extends ConsumerState<AppSidebar> with WindowListener {
                               ),
                             ),
                             const SizedBox(height: 10),
+                            // ── Bouton Mise à jour ─────────────────
+                            _UpdateButton(isDark: isDark),
+                            const SizedBox(height: 8),
+                            // ── Version + Fermer ───────────────────
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Text('v${AppConfig.appVersion}',
-                                        style: TextStyle(
-                                          color: textSecondary,
-                                          fontSize: 11,
-                                        )),
-                                    const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () async {
-                                        final svc = ref.read(updateServiceProvider);
-                                        final updated = await svc.checkForUpdates();
-                                        if (!updated) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Aucune mise à jour disponible.')),
-                                          );
-                                        }
-                                      },
-                                      child: Icon(Icons.system_update, size: 14, color: textSecondary),
+                                FutureBuilder<PackageInfo>(
+                                  future: PackageInfo.fromPlatform(),
+                                  builder: (context, snap) => Text(
+                                    snap.hasData ? 'v${snap.data!.version}' : 'v1.0.0',
+                                    style: TextStyle(
+                                      color: textSecondary,
+                                      fontSize: 11,
                                     ),
-                                  ],
+                                  ),
                                 ),
-                                const Spacer(),
-                                if (!kIsWeb) ...[
-                                  const SizedBox(width: 6),
+                                if (!kIsWeb)
                                   Tooltip(
                                     message: 'Fermer l\'application',
                                     child: InkWell(
-                                      onTap: () async {
-                                        await windowManager.close();
-                                      },
+                                      onTap: () async => windowManager.close(),
                                       borderRadius: BorderRadius.circular(8),
                                       child: const Padding(
                                         padding: EdgeInsets.all(6),
@@ -245,7 +236,6 @@ class _AppSidebarState extends ConsumerState<AppSidebar> with WindowListener {
                                       ),
                                     ),
                                   ),
-                                ],
                               ],
                             ),
                           ],
@@ -615,3 +605,108 @@ class _NavItem {
   final String label;
   const _NavItem({required this.path, required this.icon, required this.label});
 }
+
+// ─── Bouton Mise à jour ────────────────────────────────────────────────────
+class _UpdateButton extends ConsumerStatefulWidget {
+  final bool isDark;
+  const _UpdateButton({required this.isDark});
+
+  @override
+  ConsumerState<_UpdateButton> createState() => _UpdateButtonState();
+}
+
+class _UpdateButtonState extends ConsumerState<_UpdateButton> {
+  bool _loading = false;
+
+  Future<void> _check() async {
+    setState(() => _loading = true);
+    final result = await ref.read(updateServiceProvider).checkForUpdates();
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (result == UpdateResult.available) {
+      // Show confirmation dialog before installing
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.system_update, color: AppColors.primary),
+              SizedBox(width: 8),
+              Text('Mise à jour disponible'),
+            ],
+          ),
+          content: const Text(
+            'Une nouvelle version a été téléchargée.\n'
+            'L\'installation va démarrer automatiquement.\n'
+            'L\'application va se fermer puis redémarrer.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Plus tard'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Installer maintenant', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        // Run the installer silently
+        final cmd = ref.read(pendingCommandProvider);
+        if (cmd != null && cmd.isNotEmpty) {
+          await Process.run('cmd', ['/c', 'start', '', ...cmd.split(' ')]);
+          if (!kIsWeb) windowManager.close();
+        }
+      }
+    } else if (result == UpdateResult.noUpdate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✓ Vous avez déjà la dernière version.'),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de vérifier les mises à jour. Vérifiez votre connexion.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: _loading ? null : _check,
+        style: TextButton.styleFrom(
+          backgroundColor: AppColors.primary.withOpacity(0.08),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: _loading
+            ? const SizedBox(
+                width: 12, height: 12,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+              )
+            : const Icon(Icons.system_update_rounded, size: 14, color: AppColors.primary),
+        label: Text(
+          _loading ? 'Vérification...' : 'Mise à jour',
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
