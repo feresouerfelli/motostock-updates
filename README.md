@@ -171,13 +171,6 @@ dart run build_runner watch --delete-conflicting-outputs
 | `download_drift.py` | Télécharger les dépendances Drift |
 | `fix_wasm.py` | Correctif pour la compilation WASM (Web) |
 
-
----
-
-## 📄 Licence
-
-Ce projet est sous licence **MIT** — voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
 ---
 
 <div align="center">
